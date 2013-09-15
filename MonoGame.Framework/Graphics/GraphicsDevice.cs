@@ -473,6 +473,9 @@ namespace Microsoft.Xna.Framework.Graphics
         {
             GraphicsCapabilities.Initialize(this);
 
+            if (InError)
+                return;
+
 #if DIRECTX
 
 #if WINDOWS_PHONE
