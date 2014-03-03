@@ -652,9 +652,9 @@ namespace Microsoft.Xna.Framework.Audio
                         bool finished = FillBuffer(stream, buffer);
                         if (finished)
                         {
-                            //if (stream.IsLooped)
-                            //    stream.Reader.DecodedTime = TimeSpan.Zero;
-                            //else
+                            if (stream.IsLooped)
+                                stream.Reader.DecodedTime = TimeSpan.Zero;
+                            else
                             {
                                 iterationLock.EnterWriteLock();
                                 streams.Remove(stream);
