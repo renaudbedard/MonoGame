@@ -436,6 +436,9 @@ namespace Microsoft.Xna.Framework
         private TimeSpan _accumulatedElapsedTime;
         private readonly GameTime _gameTime = new GameTime();
         private Stopwatch _gameTimer = Stopwatch.StartNew();
+		private Stopwatch _interFrameTimer = Stopwatch.StartNew();
+
+	    protected TimeSpan TargetTimeStep;
 
         public bool AssumeTargetElapsedTime;
         public bool PowerSavingMode;
@@ -453,35 +456,16 @@ namespace Microsoft.Xna.Framework
 
         public void Tick()
         {
-            RunPendingActionsIfAny();
+			RunPendingActionsIfAny();
 
-        RetryTick:
-            var frameTime = _gameTimer.Elapsed;
+			var frameTime = _gameTimer.Elapsed;
 
             // Advance the accumulated elapsed time.
-            if (AssumeTargetElapsedTime)    _accumulatedElapsedTime += _targetElapsedTime;
-            else                            _accumulatedElapsedTime += frameTime;
+            if (AssumeTargetElapsedTime || PowerSavingMode)    _accumulatedElapsedTime += _targetElapsedTime;
+            else											   _accumulatedElapsedTime += frameTime;
 
             _gameTimer.Reset();
             _gameTimer.Start();
-
-            // If we're in the fixed timestep mode and not enough time has elapsed
-            // to perform an update we sleep off the the remaining time to save battery
-            // life and/or release CPU time to other threads and processes.
-            if (IsFixedTimeStep && PowerSavingMode && _accumulatedElapsedTime < TargetElapsedTime)
-            {
-                var sleepTime = (int)(TargetElapsedTime - _accumulatedElapsedTime).TotalMilliseconds;
-
-                // NOTE: While sleep can be inaccurate in general it is 
-                // accurate enough for frame limiting purposes if some
-                // fluctuation is an acceptable result.
-#if WINRT
-                Task.Delay(sleepTime).Wait();
-#else
-                System.Threading.Thread.Sleep(sleepTime);
-#endif
-                goto RetryTick;
-            }
 
             bool doUpdate = true;
             if (IsFixedTimeStep)
@@ -493,7 +477,7 @@ namespace Microsoft.Xna.Framework
 
             if (IsFixedTimeStep)
             {
-                _gameTime.ElapsedGameTime = TargetElapsedTime;
+                _gameTime.ElapsedGameTime = TargetTimeStep;
                 _gameTime.IsRunningSlowly = _accumulatedElapsedTime > TargetElapsedTime;
 
                 // Perform as many full fixed length time steps as we can.
@@ -509,7 +493,7 @@ namespace Microsoft.Xna.Framework
                     }
                 }
 
-                _gameTime.ElapsedGameTime = frameTime;
+				_gameTime.ElapsedGameTime = frameTime;
             }
             else
             {
@@ -525,6 +509,19 @@ namespace Microsoft.Xna.Framework
 
             RunPendingActionsIfAny();
 
+			// In power saving mode, force to sleep instead of busy-waiting for v-sync
+			var totalInterFrameMillis = _interFrameTimer.Elapsed.TotalMilliseconds;
+			if (PowerSavingMode && totalInterFrameMillis < TargetElapsedTime.TotalMilliseconds)
+			{
+				var sleepTime = (int) Math.Floor(TargetElapsedTime.TotalMilliseconds - totalInterFrameMillis) - 1;
+				if (sleepTime < 0) sleepTime = 0;
+#if WINRT
+                Task.Delay(sleepTime).Wait();
+#else
+				System.Threading.Thread.Sleep(sleepTime);
+#endif
+			}
+
             // Draw unless the update suppressed it.
             if (_suppressDraw)
                 _suppressDraw = false;
@@ -536,6 +533,9 @@ namespace Microsoft.Xna.Framework
                     //Console.WriteLine(1.0 / _gameTime.ElapsedGameTime.TotalSeconds);
                 }
             }
+
+			_interFrameTimer.Reset();
+			_interFrameTimer.Start();
 
             //RunPendingActionsIfAny();
         }
