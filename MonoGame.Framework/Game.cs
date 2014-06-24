@@ -509,19 +509,6 @@ namespace Microsoft.Xna.Framework
 
             RunPendingActionsIfAny();
 
-			// In power saving mode, force to sleep instead of busy-waiting for v-sync
-			var totalInterFrameMillis = _interFrameTimer.Elapsed.TotalMilliseconds;
-			if (PowerSavingMode && totalInterFrameMillis < TargetElapsedTime.TotalMilliseconds)
-			{
-				var sleepTime = (int) Math.Floor(TargetElapsedTime.TotalMilliseconds - totalInterFrameMillis) - 1;
-				if (sleepTime < 0) sleepTime = 0;
-#if WINRT
-                Task.Delay(sleepTime).Wait();
-#else
-				System.Threading.Thread.Sleep(sleepTime);
-#endif
-			}
-
             // Draw unless the update suppressed it.
             if (_suppressDraw)
                 _suppressDraw = false;
@@ -547,6 +534,19 @@ namespace Microsoft.Xna.Framework
         protected virtual bool BeginDraw() { return true; }
         protected virtual void EndDraw()
         {
+			// In power saving mode, force to sleep instead of busy-waiting for v-sync
+			var totalInterFrameMillis = _interFrameTimer.Elapsed.TotalMilliseconds;
+			if (PowerSavingMode && totalInterFrameMillis < TargetElapsedTime.TotalMilliseconds)
+			{
+				var sleepTime = (int)Math.Floor(TargetElapsedTime.TotalMilliseconds - totalInterFrameMillis);
+				if (sleepTime < 0) sleepTime = 0;
+#if WINRT
+                Task.Delay(sleepTime).Wait();
+#else
+				System.Threading.Thread.Sleep(sleepTime);
+#endif
+			}
+
             Platform.Present();
         }
 
